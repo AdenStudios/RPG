@@ -50,9 +50,21 @@ public class Player : MonoBehaviour
     public delegate void OnSaveGame();
     public static event OnSaveGame onSaveGame;
 
+    private Animator animator;
+
+    // Combat Variables \\
+    public bool isSheathed = true;
+    private bool attackInProgress = false;
+    public bool playerAttacking { get { return attackInProgress; } }
+    private bool damageSent = false;
+    private float damageDelayTimer = 0.0f;
+    private float attackInProgressTimer = 0.0f;
+    private Skill skillUsed = null;
+
     private void Awake() 
     {
         inventory = GetComponent<Inventory>();
+        animator = GetComponentInChildren<Animator>();
         BuildLoadedPlayer();
         curHealth = maxHealth;
         curMana = maxMana;
@@ -69,6 +81,7 @@ public class Player : MonoBehaviour
     {
         HandleInputs();
         StaminaPassiveRegen();
+        CombatUpdates();
     }
 
     private void BuildLoadedPlayer()
@@ -102,6 +115,18 @@ public class Player : MonoBehaviour
             onSaveGame();
             SaveSystem.SavePlayer(LoadedPlayerData.data);
             print("SAVED");
+        }
+        
+        if (Input.GetMouseButtonDown(0)) { UseSkill(0); }
+        if (Input.GetMouseButtonDown(1) && isSheathed == false) { EnableBlock(); }
+        if (Input.GetMouseButtonUp(1)) { DisableBlock(); } 
+
+        if (Input.GetKeyDown(KeyCode.X))
+        {
+            string action = isSheathed ? "Draw" : "Sheath";
+            animator.SetTrigger(action);
+            isSheathed = !isSheathed;
+            animator.SetBool("Sheathed", isSheathed);
         }
     }
 
@@ -256,5 +281,73 @@ public class Player : MonoBehaviour
     public void RemoveTarget(GameObject target)
     {
         targets.Remove(target);
+    }
+
+    // Combat Methods \\ 
+     private void CombatUpdates()
+     {
+         if (attackInProgress && damageSent == false && skillUsed != null)
+         {
+             damageDelayTimer += Time.deltaTime;
+             if (damageDelayTimer >= skillUsed.damageDealtDelay)
+             {
+                 damageSent = true;
+                 damageDelayTimer = 0;
+                 SendDamage(skillUsed.damage);
+             }
+         }
+
+         if (attackInProgress && skillUsed != null)
+         {
+             attackInProgressTimer += Time.deltaTime;
+             if (attackInProgressTimer >= skillUsed.animationFinishedDelay)
+             {
+                 attackInProgress = false;
+                 attackInProgressTimer = 0.0f;
+                 skillUsed = null;
+                 damageSent = false;
+             }
+         }
+     }
+
+     private void UseSkill(int id)
+     {
+         if (attackInProgress == false)
+         {
+             Skill skill = SkillManager.instance.GetSkill(myClass.classType, id);
+             if (skill != null)
+             {
+                attackInProgress = true;
+                animator.SetTrigger(skill.animatorName);
+                skillUsed = skill;
+                SkillManager.instance.ActivateSkillCooldown(skillUsed);
+             }
+         }
+     }
+
+    private void SendDamage(int damage)
+    {
+        List<GameObject> currentTargets = new List<GameObject>(playerTargets);
+
+        foreach (var target in currentTargets)
+        {
+            IDamageable damageable = target.GetComponent<IDamageable>();
+            if (damageable != null)
+            {
+                damageable.Damage(50, GetComponent<Player>());
+            }
+        }
+    }
+
+    public void EnableBlock()
+    {
+        animator.SetBool("Block", true);
+        attackInProgress = true;
+    }
+
+    public void DisableBlock()
+    {
+        animator.SetBool("Block", false);
+        attackInProgress = false;
     }
 }

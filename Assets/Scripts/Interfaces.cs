@@ -18,4 +18,6 @@ public interface ICharacterClass
     int baseMaxHealth { get; }
     int baseMaxStamina  { get; }
     void Attack(int id);
+    ClassType classType { get; }
 }
+ public enum ClassType { Warrior, Mage, Archer }

@@ -15,8 +15,6 @@ public class PlayerMovement : MonoBehaviour
     private CharacterController cController;
     private Animator anim;
     private Vector3 moveDirection = Vector3.zero;
-    public Joystick joystick;
-    public Joystick cameraJoyStick;
 
     private float directionY;
     private float directionX;
@@ -31,8 +29,8 @@ public class PlayerMovement : MonoBehaviour
     private float rotationX = 0.0f;
     private float rotationY = 0.0f;
 
-    private float sensitivityX = 0.20f;
-    private float sensitivityY = 0.20f;
+    private float sensitivityX = 5.0f;
+    private float sensitivityY = 5.0f;
 
     private float minimumX = -360.0f;
     private float maximumX = 360.0f;
@@ -40,7 +38,6 @@ public class PlayerMovement : MonoBehaviour
     private float maximumY = 60.0f;
 
     private Player player;
-    private PlayerCombat playerCombat;
 
     // Start is called before the first frame update
     void Start()
@@ -48,114 +45,23 @@ public class PlayerMovement : MonoBehaviour
         anim = GetComponentInChildren<Animator>();
         cController = GetComponent<CharacterController>();
         player = GetComponent<Player>();
-        playerCombat = GetComponent<PlayerCombat>();
     }
 
     // Update is called once per frame
     void Update()
     {
-        if (Input.touchCount > 0)
-        {
-            foreach (Touch touch in Input.touches)
-            {
-                if (!EventSystem.current.IsPointerOverGameObject(touch.fingerId))
-                {
-                    CameraMovement(touch.fingerId);
-                }
-            }
-        }
-
-        //KeyboardMovement();
-        TouchMovement();
+        CameraMovement();
+        KeyboardMovement();
         SetAnimatorMovementValues();
-        if (isSprinting)
-        {
-            if (player.playerStamina > 0)
-            {
-                player.UseStamina(sprintStaminaUsage);
-            }
-            else
-            {
-                DisableSprint();
-            }           
-        }
     }
 
-    private void TouchMovement()
-    {
-        if (cController.isGrounded && !GetComponent<PlayerCombat>().playerAttacking)
-        {
-            float h = joystick.Horizontal;
-            float v = joystick.Vertical;
-
-            if (h != 0 || v != 0)
-            {
-                float heading = Mathf.Atan2(joystick.Horizontal,joystick.Vertical);
-                transform.rotation =  Quaternion.Euler(0f, heading * Mathf.Rad2Deg + cameraArm.transform.eulerAngles.y, 0f);
-
-                moveDirection.x = transform.forward.x * moveSpeed;
-                moveDirection.z = transform.forward.z * moveSpeed;           
-            }
-            else 
-            {
-                moveDirection.x = 0;
-                moveDirection.z = 0;
-            }
-        }
-        else
-        {
-            moveDirection.x = 0;
-            moveDirection.z = 0;
-        }
-
-    
-        moveDirection.y -= gravity * Time.deltaTime;
-        cController.Move(moveDirection * Time.deltaTime);
-        // Make the Camera Arm follow the player
-        Vector3 myPos = transform.position;
-        Vector3 camTargetPos = new Vector3(myPos.x, myPos.y + 1, myPos.z);
-        // Smoother follow and camera will lag slightly behind
-        cameraArm.transform.position = Vector3.Lerp(cameraArm.transform.position, camTargetPos, 0.2f);
-
-        if (cController.velocity.x != 0 || cController.velocity.z != 0)
-        {
-            anim.SetBool("Running", true);
-        }
-        else
-        {
-            anim.SetBool("Running", false);
-        }
-    }
-
-    public void TouchJump()
-    {
-        if (cController.isGrounded)
-        {
-            moveDirection.y = jumpSpeed;
-            anim.SetTrigger("Jump");
-        }
-    }
-
-    public void EnableSprint()
-    {
-        isSprinting = true;
-        anim.speed = 1.2f;
-        moveSpeed = sprintSpeed;
-    }
-
-    public void DisableSprint()
-    {
-        isSprinting = false;
-        anim.speed = 1.0f;
-        moveSpeed = normalSpeed;
-    }
 
     private void KeyboardMovement()
     {
         // If player is grounded and not attacking get rotation values and run MoveWithSmoothRotation method.
         // W key to run forwards will always match the direction the camera is facing,
         // the other keys will rotate the player to run forwards in a different direction to the camera
-        if (cController.isGrounded && !GetComponent<PlayerCombat>().playerAttacking) 
+        if (cController.isGrounded && !GetComponent<Player>().playerAttacking) 
         {
            if (Input.GetKey(KeyCode.W))
             {        
@@ -234,15 +140,23 @@ public class PlayerMovement : MonoBehaviour
                 anim.speed = 1f;     
             }   
         }
-        if (cController.isGrounded && GetComponent<PlayerCombat>().playerAttacking)
+        if (Input.GetKeyUp(KeyCode.LeftShift))
+        {
+            moveSpeed = normalSpeed;
+            anim.speed = 1f;   
+        }
+        
+        if (cController.isGrounded && GetComponent<Player>().playerAttacking)
         {
             moveDirection.z = 0;
             moveDirection.x = 0;
         }
+
         if (cController.velocity.x != 0 || cController.velocity.z != 0)
         {
             anim.SetBool("Running", true);
         }
+        
         else
         {
             anim.SetBool("Running", false);
@@ -283,10 +197,10 @@ public class PlayerMovement : MonoBehaviour
         anim.SetFloat("MoveY", newY);
     }
     // Move the Camera, Camera will aways rotate with the mouse
-    private void CameraMovement(int id)
+    private void CameraMovement()
     {
-        rotationX += Input.GetTouch(id).deltaPosition.x * sensitivityX;
-        rotationY -= Input.GetTouch(id).deltaPosition.y * sensitivityY;
+        rotationX += Input.GetAxis("Mouse X")* sensitivityX;
+        rotationY -= Input.GetAxis("Mouse Y") * sensitivityY;
 
         rotationX = ClampAngle(rotationX, minimumX, maximumX);
         rotationY = ClampAngle(rotationY, minimumY, maximumY);
